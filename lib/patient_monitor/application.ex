@@ -21,7 +21,12 @@ defmodule PatientMonitor.Application do
     ]
 
     opts = [strategy: :one_for_one, name: PatientMonitor.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+
+    # Seed demo patients after startup (InMemory event store doesn't persist)
+    seed_demo_patients()
+
+    result
   end
 
   @impl true
@@ -32,5 +37,28 @@ defmodule PatientMonitor.Application do
 
   defp skip_migrations?() do
     System.get_env("RELEASE_NAME") == nil
+  end
+
+  defp seed_demo_patients do
+    alias PatientMonitor.Commanded.App
+    alias PatientMonitor.Commanded.Commands.RegisterPatient
+
+    patients = [
+      %{patient_id: "P001", name: "John Smith", pathway_start_date: Date.add(Date.utc_today(), -7)},
+      %{patient_id: "P002", name: "Jane Doe", pathway_start_date: Date.add(Date.utc_today(), -2)},
+      %{patient_id: "P003", name: "Bob Wilson", pathway_start_date: Date.add(Date.utc_today(), -14)}
+    ]
+
+    for patient <- patients do
+      command = %RegisterPatient{
+        patient_id: patient.patient_id,
+        name: patient.name,
+        pathway_start_date: patient.pathway_start_date
+      }
+
+      App.dispatch(command)
+    end
+
+    :ok
   end
 end
