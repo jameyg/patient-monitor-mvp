@@ -217,7 +217,7 @@ defmodule PatientMonitorWeb.DashboardLive do
 
   defp patient_card(assigns) do
     news2_class = news2_color_class(assigns.patient.latest_news2_score)
-    pathway_day = assigns.patient.pathway_day || 1
+    pathway_day = calculate_pathway_day(assigns.patient)
 
     assigns =
       assigns
@@ -318,7 +318,7 @@ defmodule PatientMonitorWeb.DashboardLive do
       <div :if={@escalation.status == "active"} class="flex gap-2 items-center border-t border-slate-100 pt-4">
         <input
           type="text"
-          placeholder="Enter your name"
+          placeholder="Enter your name" class="placeholder:text-slate-400"
           value={@user_name}
           phx-keyup="update_user_name"
           class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -352,7 +352,7 @@ defmodule PatientMonitorWeb.DashboardLive do
         <.status_icon status={@status} />
       </div>
 
-      <div class="font-medium text-sm mb-1">{@step.label}</div>
+      <div class="font-semibold text-sm mb-1 text-slate-800">{@step.label}</div>
 
       <%= case @status do %>
         <% :active -> %>
@@ -432,6 +432,16 @@ defmodule PatientMonitorWeb.DashboardLive do
   defp news2_color_class(score) when score >= 5, do: "bg-orange-100 text-orange-700"
   defp news2_color_class(score) when score >= 1, do: "bg-yellow-100 text-yellow-700"
   defp news2_color_class(_), do: "bg-green-100 text-green-700"
+
+  defp calculate_pathway_day(patient) do
+    case patient.pathway_start_date do
+      nil -> 1
+      start_date ->
+        days = Date.diff(Date.utc_today(), start_date)
+        max(1, min(days, 28))
+    end
+  end
+
 
   defp pathway_stage(day, steps) do
     steps
