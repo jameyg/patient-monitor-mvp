@@ -59,6 +59,11 @@ defmodule PatientMonitorWeb.DashboardLive do
     {:noreply, socket}
   end
 
+  def handle_event("reset_demo", _params, socket) do
+    PatientMonitor.Application.reset_demo()
+    {:noreply, socket}
+  end
+
   def handle_event("select_patient", %{"id" => id}, socket) do
     patient = Patients.get_patient_with_vitals(id)
     {:noreply, assign(socket, :selected_patient, patient)}
@@ -157,6 +162,15 @@ defmodule PatientMonitorWeb.DashboardLive do
     {:noreply, assign(socket, :activity_log, Escalations.list_recent_activity(15))}
   end
 
+  def handle_info(:demo_reset, socket) do
+    {:noreply,
+     socket
+     |> assign(:patients, Patients.list_patients())
+     |> assign(:escalations, Escalations.list_active_escalations())
+     |> assign(:activity_log, Escalations.list_recent_activity(15))
+     |> assign(:audit_data, nil)}
+  end
+
   def handle_info(:tick, socket) do
     schedule_tick()
     {:noreply, assign(socket, :current_time, DateTime.utc_now())}
@@ -176,12 +190,21 @@ defmodule PatientMonitorWeb.DashboardLive do
             <h1 class="text-2xl font-bold text-slate-800">Patient Monitor</h1>
             <p class="text-sm text-slate-500">Commanded + Oban Demo</p>
           </div>
-          <button
-            phx-click="simulate_vitals"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Simulate Vitals
-          </button>
+          <div class="flex gap-2">
+            <button
+              phx-click="simulate_vitals"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Simulate Vitals
+            </button>
+            <button
+              phx-click="reset_demo"
+              data-confirm="Reset all demo data? This will clear all vitals, escalations, and activity."
+              class="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors font-medium"
+            >
+              Reset Demo
+            </button>
+          </div>
         </div>
       </header>
 
@@ -534,7 +557,7 @@ defmodule PatientMonitorWeb.DashboardLive do
       <span class={"w-2 h-2 rounded-full mt-1.5 #{action_color(@entry.action)}"} />
       <div class="flex-1">
         <span class="font-medium text-slate-700">{format_action(@entry.action)}</span>
-        <span :if={@entry.patient_id} class="text-slate-500"> -      {@entry.patient_id}</span>
+        <span :if={@entry.patient_id} class="text-slate-500"> -          {@entry.patient_id}</span>
         <span :if={@entry.actor && @entry.actor != "System"} class="text-slate-400">
           by {@entry.actor}
         </span>

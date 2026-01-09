@@ -42,14 +42,28 @@ defmodule PatientMonitor.Application do
   defp seed_demo_patients do
     # Give the system a moment to fully start
     Process.sleep(500)
+    do_seed_patients()
+  end
 
+  @doc """
+  Seeds demo patients. Called on startup and can be called manually.
+  """
+  def do_seed_patients do
     alias PatientMonitor.Commanded.App
     alias PatientMonitor.Commanded.Commands.RegisterPatient
 
     patients = [
-      %{patient_id: "P001", name: "John Smith", pathway_start_date: Date.add(Date.utc_today(), -7)},
+      %{
+        patient_id: "P001",
+        name: "John Smith",
+        pathway_start_date: Date.add(Date.utc_today(), -7)
+      },
       %{patient_id: "P002", name: "Jane Doe", pathway_start_date: Date.add(Date.utc_today(), -2)},
-      %{patient_id: "P003", name: "Bob Wilson", pathway_start_date: Date.add(Date.utc_today(), -14)}
+      %{
+        patient_id: "P003",
+        name: "Bob Wilson",
+        pathway_start_date: Date.add(Date.utc_today(), -14)
+      }
     ]
 
     for patient <- patients do
@@ -65,6 +79,35 @@ defmodule PatientMonitor.Application do
         error -> error
       end
     end
+
+    :ok
+  end
+
+  @doc """
+  Resets all demo data - clears database tables and re-seeds patients.
+  """
+  def reset_demo do
+    alias PatientMonitor.Repo
+    alias PatientMonitor.Patients.{PatientProjection, VitalsReading}
+    alias PatientMonitor.Escalations.{Escalation, EscalationStep}
+    alias PatientMonitor.ActivityLog
+
+    # Cancel any running Oban jobs
+    Oban.cancel_all_jobs(Oban)
+
+    # Clear all tables (order matters for foreign keys)
+    Repo.delete_all(EscalationStep)
+    Repo.delete_all(Escalation)
+    Repo.delete_all(VitalsReading)
+    Repo.delete_all(ActivityLog)
+    Repo.delete_all(PatientProjection)
+
+    # Re-seed patients
+    do_seed_patients()
+
+    # Broadcast to refresh UI
+    Phoenix.PubSub.broadcast(PatientMonitor.PubSub, "patients", :demo_reset)
+    Phoenix.PubSub.broadcast(PatientMonitor.PubSub, "escalations", :demo_reset)
 
     :ok
   end
