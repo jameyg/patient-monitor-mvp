@@ -41,7 +41,10 @@ defmodule PatientMonitorWeb.DashboardLive do
      |> assign(:pathway_steps, @pathway_steps)
      |> assign(:escalation_steps, @escalation_steps)
      |> assign(:show_info_card, true)
-     |> assign(:current_time, DateTime.utc_now())}
+     |> assign(:current_time, DateTime.utc_now())
+     |> assign(:show_audit_panel, false)
+     |> assign(:audit_tab, "escalations")
+     |> assign(:audit_data, nil)}
   end
 
   def handle_event("dismiss_info_card", _params, socket) do
@@ -81,6 +84,51 @@ defmodule PatientMonitorWeb.DashboardLive do
 
     {:noreply, socket}
   end
+
+  def handle_event("toggle_audit_panel", _params, socket) do
+    show = !socket.assigns.show_audit_panel
+    socket = assign(socket, :show_audit_panel, show)
+
+    socket =
+      if show and socket.assigns.audit_data == nil do
+        load_audit_data(socket, socket.assigns.audit_tab)
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("switch_audit_tab", %{"tab" => tab}, socket) do
+    {:noreply, socket |> assign(:audit_tab, tab) |> load_audit_data(tab)}
+  end
+
+  defp load_audit_data(socket, "escalations") do
+    data = Escalations.list_all_escalations()
+    assign(socket, :audit_data, data)
+  end
+
+  defp load_audit_data(socket, "steps") do
+    data = Escalations.list_escalation_steps()
+    assign(socket, :audit_data, data)
+  end
+
+  defp load_audit_data(socket, "vitals") do
+    data = Patients.list_all_vitals()
+    assign(socket, :audit_data, data)
+  end
+
+  defp load_audit_data(socket, "activity") do
+    data = Escalations.list_all_activity()
+    assign(socket, :audit_data, data)
+  end
+
+  defp load_audit_data(socket, "patients") do
+    data = Patients.list_all_patients()
+    assign(socket, :audit_data, data)
+  end
+
+  defp load_audit_data(socket, _), do: assign(socket, :audit_data, [])
 
   # PubSub handlers
   def handle_info({:patient_created, _patient}, socket) do
@@ -140,8 +188,8 @@ defmodule PatientMonitorWeb.DashboardLive do
       <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
         <!-- Info Banner -->
         <.info_banner :if={@show_info_card} />
-
-        <!-- Patient Cards -->
+        
+    <!-- Patient Cards -->
         <section>
           <h2 class="text-lg font-semibold text-slate-700 mb-3">Patients</h2>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -158,8 +206,8 @@ defmodule PatientMonitorWeb.DashboardLive do
             </div>
           </div>
         </section>
-
-        <!-- Active Escalations -->
+        
+    <!-- Active Escalations -->
         <section :if={@escalations != []}>
           <h2 class="text-lg font-semibold text-slate-700 mb-3">Active Escalations</h2>
           <div class="space-y-4">
@@ -173,8 +221,8 @@ defmodule PatientMonitorWeb.DashboardLive do
             />
           </div>
         </section>
-
-        <!-- Activity Log -->
+        
+    <!-- Activity Log -->
         <section>
           <h2 class="text-lg font-semibold text-slate-700 mb-3">Activity Log</h2>
           <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
@@ -183,6 +231,40 @@ defmodule PatientMonitorWeb.DashboardLive do
               <div :if={@activity_log == []} class="text-slate-500 text-sm text-center py-4">
                 No activity yet. Simulate vitals to generate events.
               </div>
+            </div>
+          </div>
+        </section>
+        
+    <!-- Audit Panel -->
+        <section>
+          <button
+            phx-click="toggle_audit_panel"
+            class="flex items-center gap-2 text-lg font-semibold text-slate-700 mb-3 hover:text-slate-900"
+          >
+            <svg
+              class={"w-5 h-5 transition-transform #{if @show_audit_panel, do: "rotate-90", else: ""}"}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+            Audit Data (Raw)
+          </button>
+
+          <div :if={@show_audit_panel} class="bg-white rounded-lg shadow-sm border border-slate-200">
+            <!-- Tabs -->
+            <div class="flex border-b border-slate-200">
+              <.audit_tab label="Escalations" tab="escalations" active={@audit_tab} />
+              <.audit_tab label="Steps" tab="steps" active={@audit_tab} />
+              <.audit_tab label="Vitals" tab="vitals" active={@audit_tab} />
+              <.audit_tab label="Activity" tab="activity" active={@audit_tab} />
+              <.audit_tab label="Patients" tab="patients" active={@audit_tab} />
+            </div>
+            
+    <!-- Content -->
+            <div class="p-4 max-h-96 overflow-auto">
+              <.audit_table data={@audit_data} tab={@audit_tab} />
             </div>
           </div>
         </section>
@@ -201,15 +283,24 @@ defmodule PatientMonitorWeb.DashboardLive do
         class="absolute top-2 right-2 text-blue-400 hover:text-blue-600"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       </button>
       <h3 class="font-semibold text-blue-800 mb-2">Commanded + Oban Demo</h3>
       <ul class="text-sm text-blue-700 space-y-1">
         <li><strong>Event Sourcing:</strong> Patient vitals are recorded via Commanded aggregates</li>
         <li><strong>NEWS2 Alerts:</strong> Score >= 5 or critical vitals trigger escalation</li>
-        <li><strong>Escalation Workflow:</strong> 3-step DAG (Nurse 30s -> Senior 20s -> On-Call 15s)</li>
-        <li><strong>Human-in-the-Loop:</strong> Enter your name and acknowledge to cancel escalation</li>
+        <li>
+          <strong>Escalation Workflow:</strong> 3-step DAG (Nurse 30s -> Senior 20s -> On-Call 15s)
+        </li>
+        <li>
+          <strong>Human-in-the-Loop:</strong> Enter your name and acknowledge to cancel escalation
+        </li>
       </ul>
     </div>
     """
@@ -235,8 +326,8 @@ defmodule PatientMonitorWeb.DashboardLive do
           NEWS2: {@patient.latest_news2_score || 0}
         </div>
       </div>
-
-      <!-- Vitals Grid -->
+      
+    <!-- Vitals Grid -->
       <div class="grid grid-cols-2 gap-2 text-sm mb-3">
         <div class="flex justify-between">
           <span class="text-slate-500">SpO2:</span>
@@ -257,8 +348,8 @@ defmodule PatientMonitorWeb.DashboardLive do
           <span class="font-medium text-slate-700">{@patient.latest_systolic_bp || "-"}</span>
         </div>
       </div>
-
-      <!-- Pathway Progress -->
+      
+    <!-- Pathway Progress -->
       <div class="border-t border-slate-100 pt-3">
         <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
           <span>Pathway Day {@pathway_day}</span>
@@ -296,8 +387,8 @@ defmodule PatientMonitorWeb.DashboardLive do
           {@escalation.status}
         </span>
       </div>
-
-      <!-- DAG Visualization -->
+      
+    <!-- DAG Visualization -->
       <div class="flex items-center justify-center gap-2 mb-4 py-4 bg-slate-50 rounded-lg">
         <%= for {step, idx} <- Enum.with_index(@steps) do %>
           <.step_node
@@ -313,9 +404,12 @@ defmodule PatientMonitorWeb.DashboardLive do
           <% end %>
         <% end %>
       </div>
-
-      <!-- Acknowledge Form -->
-      <div :if={@escalation.status == "active"} class="flex gap-2 items-center border-t border-slate-100 pt-4">
+      
+    <!-- Acknowledge Form -->
+      <div
+        :if={@escalation.status == "active"}
+        class="flex gap-2 items-center border-t border-slate-100 pt-4"
+      >
         <input
           type="text"
           placeholder="Enter your name"
@@ -332,18 +426,25 @@ defmodule PatientMonitorWeb.DashboardLive do
           Acknowledge
         </button>
       </div>
-
-      <!-- Critical Alert for Unacknowledged -->
+      
+    <!-- Critical Alert for Unacknowledged -->
       <div :if={@escalation.status == "completed"} class="border-t border-red-200 pt-4 mt-2">
         <div class="bg-red-100 border border-red-300 rounded-lg p-3 flex items-center gap-3">
           <div class="flex-shrink-0">
             <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
             </svg>
           </div>
           <div>
             <p class="font-semibold text-red-800">CRITICAL: Escalation Unacknowledged</p>
-            <p class="text-sm text-red-700">All escalation steps timed out without response. Immediate action required.</p>
+            <p class="text-sm text-red-700">
+              All escalation steps timed out without response. Immediate action required.
+            </p>
           </div>
         </div>
       </div>
@@ -353,7 +454,9 @@ defmodule PatientMonitorWeb.DashboardLive do
 
   defp step_node(assigns) do
     status = determine_step_status(assigns.step.step, assigns.escalation)
-    time_remaining = calculate_time_remaining(assigns.step.step, assigns.escalation, assigns.current_time)
+
+    time_remaining =
+      calculate_time_remaining(assigns.step.step, assigns.escalation, assigns.current_time)
 
     assigns =
       assigns
@@ -431,7 +534,7 @@ defmodule PatientMonitorWeb.DashboardLive do
       <span class={"w-2 h-2 rounded-full mt-1.5 #{action_color(@entry.action)}"} />
       <div class="flex-1">
         <span class="font-medium text-slate-700">{format_action(@entry.action)}</span>
-        <span :if={@entry.patient_id} class="text-slate-500"> - {@entry.patient_id}</span>
+        <span :if={@entry.patient_id} class="text-slate-500"> -      {@entry.patient_id}</span>
         <span :if={@entry.actor && @entry.actor != "System"} class="text-slate-400">
           by {@entry.actor}
         </span>
@@ -450,13 +553,14 @@ defmodule PatientMonitorWeb.DashboardLive do
 
   defp calculate_pathway_day(patient) do
     case patient.pathway_start_date do
-      nil -> 1
+      nil ->
+        1
+
       start_date ->
         days = Date.diff(Date.utc_today(), start_date)
         max(1, min(days, 28))
     end
   end
-
 
   defp pathway_stage(day, steps) do
     steps
@@ -532,4 +636,228 @@ defmodule PatientMonitorWeb.DashboardLive do
   defp action_color("step_started"), do: "bg-amber-500"
   defp action_color("step_completed"), do: "bg-blue-500"
   defp action_color(_), do: "bg-slate-400"
+
+  # Audit components
+
+  defp audit_tab(assigns) do
+    ~H"""
+    <button
+      phx-click="switch_audit_tab"
+      phx-value-tab={@tab}
+      class={"px-4 py-2 text-sm font-medium border-b-2 #{if @active == @tab, do: "border-blue-500 text-blue-600", else: "border-transparent text-slate-500 hover:text-slate-700"}"}
+    >
+      {@label}
+    </button>
+    """
+  end
+
+  defp audit_table(%{data: nil} = assigns) do
+    ~H"""
+    <div class="text-center text-slate-500 py-8">Loading...</div>
+    """
+  end
+
+  defp audit_table(%{data: []} = assigns) do
+    ~H"""
+    <div class="text-center text-slate-500 py-8">No data available</div>
+    """
+  end
+
+  defp audit_table(%{tab: "escalations", data: data} = assigns) do
+    assigns = assign(assigns, :rows, data)
+
+    ~H"""
+    <table class="w-full text-xs text-slate-700">
+      <thead class="bg-slate-50 text-left">
+        <tr>
+          <th class="px-2 py-1 font-medium text-slate-600">ID</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Patient</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Trigger</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Value</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Status</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Step</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Ack By</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Started</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr :for={row <- @rows} class="border-t border-slate-100">
+          <td class="px-2 py-1 font-mono text-slate-500">{String.slice(row.id, 0..7)}</td>
+          <td class="px-2 py-1">{row.patient_id}</td>
+          <td class="px-2 py-1">{row.trigger_event}</td>
+          <td class="px-2 py-1">{row.trigger_value}</td>
+          <td class="px-2 py-1">
+            <span class={"px-1 rounded #{status_badge_color(row.status)}"}>{row.status}</span>
+          </td>
+          <td class="px-2 py-1">{row.current_step}</td>
+          <td class="px-2 py-1">{row.acknowledged_by || "-"}</td>
+          <td class="px-2 py-1">{format_datetime(row.started_at)}</td>
+        </tr>
+      </tbody>
+    </table>
+    """
+  end
+
+  defp audit_table(%{tab: "steps", data: data} = assigns) do
+    assigns = assign(assigns, :rows, data)
+
+    ~H"""
+    <table class="w-full text-xs text-slate-700">
+      <thead class="bg-slate-50 text-left">
+        <tr>
+          <th class="px-2 py-1 font-medium text-slate-600">Escalation</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Step #</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Type</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Status</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Outcome</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Notified</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Deadline</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Completed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr :for={row <- @rows} class="border-t border-slate-100">
+          <td class="px-2 py-1 font-mono text-slate-500">{String.slice(row.escalation_id, 0..7)}</td>
+          <td class="px-2 py-1">{row.step_number}</td>
+          <td class="px-2 py-1">{row.step_type}</td>
+          <td class="px-2 py-1">
+            <span class={"px-1 rounded #{step_status_color(row.status)}"}>{row.status}</span>
+          </td>
+          <td class="px-2 py-1">{row.outcome || "-"}</td>
+          <td class="px-2 py-1">{format_datetime(row.notified_at)}</td>
+          <td class="px-2 py-1">{format_datetime(row.deadline)}</td>
+          <td class="px-2 py-1">{format_datetime(row.completed_at)}</td>
+        </tr>
+      </tbody>
+    </table>
+    """
+  end
+
+  defp audit_table(%{tab: "vitals", data: data} = assigns) do
+    assigns = assign(assigns, :rows, data)
+
+    ~H"""
+    <table class="w-full text-xs text-slate-700">
+      <thead class="bg-slate-50 text-left">
+        <tr>
+          <th class="px-2 py-1 font-medium text-slate-600">Patient</th>
+          <th class="px-2 py-1 font-medium text-slate-600">SpO2</th>
+          <th class="px-2 py-1 font-medium text-slate-600">HR</th>
+          <th class="px-2 py-1 font-medium text-slate-600">RR</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Temp</th>
+          <th class="px-2 py-1 font-medium text-slate-600">BP</th>
+          <th class="px-2 py-1 font-medium text-slate-600">NEWS2</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Risk</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Recorded</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr :for={row <- @rows} class="border-t border-slate-100">
+          <td class="px-2 py-1">{row.patient_id}</td>
+          <td class="px-2 py-1">{row.spo2}%</td>
+          <td class="px-2 py-1">{row.heart_rate}</td>
+          <td class="px-2 py-1">{row.respiratory_rate}</td>
+          <td class="px-2 py-1">{row.temperature}</td>
+          <td class="px-2 py-1">{row.systolic_bp}</td>
+          <td class="px-2 py-1 font-medium">{row.news2_score}</td>
+          <td class="px-2 py-1">
+            <span class={"px-1 rounded #{risk_color(row.news2_risk_level)}"}>
+              {row.news2_risk_level}
+            </span>
+          </td>
+          <td class="px-2 py-1">{format_datetime(row.recorded_at)}</td>
+        </tr>
+      </tbody>
+    </table>
+    """
+  end
+
+  defp audit_table(%{tab: "activity", data: data} = assigns) do
+    assigns = assign(assigns, :rows, data)
+
+    ~H"""
+    <table class="w-full text-xs text-slate-700">
+      <thead class="bg-slate-50 text-left">
+        <tr>
+          <th class="px-2 py-1 font-medium text-slate-600">Timestamp</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Patient</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Action</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Actor</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr :for={row <- @rows} class="border-t border-slate-100">
+          <td class="px-2 py-1">{format_datetime(row.inserted_at)}</td>
+          <td class="px-2 py-1">{row.patient_id || "-"}</td>
+          <td class="px-2 py-1">{row.action}</td>
+          <td class="px-2 py-1">{row.actor}</td>
+          <td class="px-2 py-1 font-mono text-slate-500">{Jason.encode!(row.details || %{})}</td>
+        </tr>
+      </tbody>
+    </table>
+    """
+  end
+
+  defp audit_table(%{tab: "patients", data: data} = assigns) do
+    assigns = assign(assigns, :rows, data)
+
+    ~H"""
+    <table class="w-full text-xs text-slate-700">
+      <thead class="bg-slate-50 text-left">
+        <tr>
+          <th class="px-2 py-1 font-medium text-slate-600">Patient ID</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Name</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Status</th>
+          <th class="px-2 py-1 font-medium text-slate-600">SpO2</th>
+          <th class="px-2 py-1 font-medium text-slate-600">HR</th>
+          <th class="px-2 py-1 font-medium text-slate-600">RR</th>
+          <th class="px-2 py-1 font-medium text-slate-600">NEWS2</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Pathway Start</th>
+          <th class="px-2 py-1 font-medium text-slate-600">Last Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr :for={row <- @rows} class="border-t border-slate-100">
+          <td class="px-2 py-1 font-mono">{row.patient_id}</td>
+          <td class="px-2 py-1">{row.name}</td>
+          <td class="px-2 py-1">{row.status}</td>
+          <td class="px-2 py-1">{row.latest_spo2 || "-"}</td>
+          <td class="px-2 py-1">{row.latest_heart_rate || "-"}</td>
+          <td class="px-2 py-1">{row.latest_respiratory_rate || "-"}</td>
+          <td class="px-2 py-1">{row.latest_news2_score || "-"}</td>
+          <td class="px-2 py-1">{row.pathway_start_date}</td>
+          <td class="px-2 py-1">{format_datetime(row.vitals_updated_at)}</td>
+        </tr>
+      </tbody>
+    </table>
+    """
+  end
+
+  defp audit_table(assigns) do
+    ~H"""
+    <div class="text-center text-slate-500 py-8">Select a tab to view data</div>
+    """
+  end
+
+  # Audit helper functions
+
+  defp format_datetime(nil), do: "-"
+  defp format_datetime(dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S")
+
+  defp status_badge_color("active"), do: "bg-red-100 text-red-700"
+  defp status_badge_color("acknowledged"), do: "bg-green-100 text-green-700"
+  defp status_badge_color("completed"), do: "bg-slate-100 text-slate-700"
+  defp status_badge_color(_), do: "bg-slate-100 text-slate-600"
+
+  defp step_status_color("active"), do: "bg-amber-100 text-amber-700"
+  defp step_status_color("completed"), do: "bg-green-100 text-green-700"
+  defp step_status_color("pending"), do: "bg-slate-100 text-slate-600"
+  defp step_status_color(_), do: "bg-slate-100 text-slate-600"
+
+  defp risk_color("low"), do: "bg-green-100 text-green-700"
+  defp risk_color("low_medium"), do: "bg-yellow-100 text-yellow-700"
+  defp risk_color("medium"), do: "bg-orange-100 text-orange-700"
+  defp risk_color("high"), do: "bg-red-100 text-red-700"
+  defp risk_color(_), do: "bg-slate-100 text-slate-600"
 end

@@ -75,6 +75,19 @@ defmodule PatientMonitor.Patients do
     |> Repo.all()
   end
 
+  # Audit functions - raw data access
+  def list_all_vitals do
+    VitalsReading
+    |> order_by([v], desc: v.recorded_at)
+    |> Repo.all()
+  end
+
+  def list_all_patients do
+    PatientProjection
+    |> order_by([p], asc: p.patient_id)
+    |> Repo.all()
+  end
+
   # PubSub
   def subscribe do
     Phoenix.PubSub.subscribe(PatientMonitor.PubSub, "patients")

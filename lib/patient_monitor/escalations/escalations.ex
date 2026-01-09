@@ -48,6 +48,7 @@ defmodule PatientMonitor.Escalations do
           trigger: esc.trigger_event,
           value: esc.trigger_value
         })
+
         broadcast({:escalation_created, esc})
 
       _ ->
@@ -138,7 +139,14 @@ defmodule PatientMonitor.Escalations do
           })
           |> Repo.update()
 
-        log_activity(escalation.patient_id, escalation_id, "escalation_acknowledged", acknowledged_by, %{})
+        log_activity(
+          escalation.patient_id,
+          escalation_id,
+          "escalation_acknowledged",
+          acknowledged_by,
+          %{}
+        )
+
         broadcast({:escalation_updated, updated |> Repo.preload(:steps, force: true)})
         {:ok, updated}
     end
@@ -188,6 +196,26 @@ defmodule PatientMonitor.Escalations do
     ActivityLog
     |> order_by([a], desc: a.inserted_at)
     |> limit(^limit)
+    |> Repo.all()
+  end
+
+  # Audit functions - raw data access
+  def list_all_escalations do
+    Escalation
+    |> order_by([e], desc: e.started_at)
+    |> preload(:steps)
+    |> Repo.all()
+  end
+
+  def list_all_activity do
+    ActivityLog
+    |> order_by([a], desc: a.inserted_at)
+    |> Repo.all()
+  end
+
+  def list_escalation_steps do
+    EscalationStep
+    |> order_by([s], desc: s.notified_at)
     |> Repo.all()
   end
 
