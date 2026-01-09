@@ -16,7 +16,7 @@ defmodule PatientMonitor.Escalations do
 
   def list_active_escalations do
     Escalation
-    |> where([e], e.status == "active")
+    |> where([e], e.status in ["active", "completed"])
     |> order_by([e], desc: e.started_at)
     |> preload(:steps)
     |> Repo.all()
@@ -26,7 +26,7 @@ defmodule PatientMonitor.Escalations do
 
   def get_escalation_by_patient(patient_id) do
     Escalation
-    |> where([e], e.patient_id == ^patient_id and e.status == "active")
+    |> where([e], e.patient_id == ^patient_id and e.status in ["active", "completed"])
     |> preload(:steps)
     |> Repo.one()
   end

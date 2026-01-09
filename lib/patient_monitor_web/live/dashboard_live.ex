@@ -318,10 +318,10 @@ defmodule PatientMonitorWeb.DashboardLive do
       <div :if={@escalation.status == "active"} class="flex gap-2 items-center border-t border-slate-100 pt-4">
         <input
           type="text"
-          placeholder="Enter your name" class="text-slate-900 bg-white border border-slate-300 placeholder:text-slate-400"
+          placeholder="Enter your name"
           value={@user_name}
           phx-keyup="update_user_name"
-          class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          class="flex-1 px-3 py-2 text-slate-900 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-slate-400"
         />
         <button
           phx-click="acknowledge_escalation"
@@ -331,6 +331,21 @@ defmodule PatientMonitorWeb.DashboardLive do
         >
           Acknowledge
         </button>
+      </div>
+
+      <!-- Critical Alert for Unacknowledged -->
+      <div :if={@escalation.status == "completed"} class="border-t border-red-200 pt-4 mt-2">
+        <div class="bg-red-100 border border-red-300 rounded-lg p-3 flex items-center gap-3">
+          <div class="flex-shrink-0">
+            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <p class="font-semibold text-red-800">CRITICAL: Escalation Unacknowledged</p>
+            <p class="text-sm text-red-700">All escalation steps timed out without response. Immediate action required.</p>
+          </div>
+        </div>
       </div>
     </div>
     """
@@ -495,7 +510,7 @@ defmodule PatientMonitorWeb.DashboardLive do
 
   defp status_class("active"), do: "bg-red-100 text-red-700"
   defp status_class("acknowledged"), do: "bg-green-100 text-green-700"
-  defp status_class("completed"), do: "bg-slate-100 text-slate-700"
+  defp status_class("completed"), do: "bg-red-200 text-red-800 font-semibold"
   defp status_class(_), do: "bg-slate-100 text-slate-700"
 
   defp format_trigger("spo2_critical"), do: "SpO2 Critical"
