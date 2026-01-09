@@ -14,19 +14,19 @@ defmodule PatientMonitor.Application do
       {Phoenix.PubSub, name: PatientMonitor.PubSub},
       # Commanded application (event sourcing)
       PatientMonitor.Commanded.App,
+      # Event handlers (must start after Commanded.App)
+      PatientMonitor.Commanded.Handlers.ProjectionHandler,
+      PatientMonitor.Commanded.Handlers.EscalationHandler,
       # Oban (background jobs)
       {Oban, Application.fetch_env!(:patient_monitor, Oban)},
+      # Seeder task to register demo patients after everything starts
+      {Task, fn -> seed_demo_patients() end},
       # Start to serve requests, typically the last entry
       PatientMonitorWeb.Endpoint
     ]
 
     opts = [strategy: :one_for_one, name: PatientMonitor.Supervisor]
-    result = Supervisor.start_link(children, opts)
-
-    # Seed demo patients after startup (InMemory event store doesn't persist)
-    seed_demo_patients()
-
-    result
+    Supervisor.start_link(children, opts)
   end
 
   @impl true
@@ -40,6 +40,9 @@ defmodule PatientMonitor.Application do
   end
 
   defp seed_demo_patients do
+    # Give the system a moment to fully start
+    Process.sleep(500)
+
     alias PatientMonitor.Commanded.App
     alias PatientMonitor.Commanded.Commands.RegisterPatient
 
@@ -56,7 +59,11 @@ defmodule PatientMonitor.Application do
         pathway_start_date: patient.pathway_start_date
       }
 
-      App.dispatch(command)
+      case App.dispatch(command) do
+        :ok -> :ok
+        {:error, :patient_already_registered} -> :ok
+        error -> error
+      end
     end
 
     :ok
