@@ -300,10 +300,11 @@ defmodule PatientMonitorWeb.DashboardLive do
 
   defp info_banner(assigns) do
     ~H"""
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 relative">
+    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 relative">
       <button
         phx-click="dismiss_info_card"
-        class="absolute top-2 right-2 text-blue-400 hover:text-blue-600"
+        class="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+        aria-label="Dismiss"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -314,17 +315,73 @@ defmodule PatientMonitorWeb.DashboardLive do
           />
         </svg>
       </button>
-      <h3 class="font-semibold text-blue-800 mb-2">Commanded + Oban Demo</h3>
-      <ul class="text-sm text-blue-700 space-y-1">
-        <li><strong>Event Sourcing:</strong> Patient vitals are recorded via Commanded aggregates</li>
-        <li><strong>NEWS2 Alerts:</strong> Score >= 5 or critical vitals trigger escalation</li>
-        <li>
-          <strong>Escalation Workflow:</strong> 3-step DAG (Nurse 30s -> Senior 20s -> On-Call 15s)
-        </li>
-        <li>
-          <strong>Human-in-the-Loop:</strong> Enter your name and acknowledge to cancel escalation
-        </li>
-      </ul>
+      <div class="flex gap-4">
+        <div class="flex-shrink-0">
+          <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+        </div>
+        <div class="flex-1 pr-8">
+          <h3 class="font-semibold text-slate-900 mb-1">Event-Sourced Patient Monitoring Demo</h3>
+          <p class="text-sm text-slate-600 mb-3">
+            This demo showcases <strong>Commanded</strong>
+            (event sourcing) + <strong>Oban</strong>
+            (durable workflows) for clinical escalation. Vitals trigger NEWS2 alerts, which launch
+            a timed escalation workflow that humans can acknowledge to cancel.
+          </p>
+          <div class="grid grid-cols-2 gap-4 mb-3">
+            <div>
+              <div class="text-xs font-semibold text-slate-700 mb-2">Try it out:</div>
+              <ol class="text-xs text-slate-600 space-y-1 list-decimal list-inside">
+                <li>Click <strong>Simulate Vitals</strong> to generate readings</li>
+                <li>High NEWS2 scores trigger an <strong>escalation</strong></li>
+                <li>Watch the 3-step workflow countdown (30s/20s/15s)</li>
+                <li>Enter your name and <strong>Acknowledge</strong> to cancel</li>
+              </ol>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-700 mb-2">See the event store:</div>
+              <ol class="text-xs text-slate-600 space-y-1 list-decimal list-inside">
+                <li>Click <strong>Show Audit Data</strong> to see raw tables</li>
+                <li>View the immutable event history</li>
+                <li>See how projections build read models</li>
+                <li>Click <strong>Reset Demo</strong> to start fresh</li>
+              </ol>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs pt-2 border-t border-blue-200">
+            <div class="flex items-center gap-1.5 text-slate-500">
+              <span class="font-medium text-slate-700">Tech:</span>
+              <span>Commanded (Event Sourcing)</span>
+              <span class="text-slate-300">•</span>
+              <span>Oban (Workflows)</span>
+              <span class="text-slate-300">•</span>
+              <span>Phoenix LiveView</span>
+              <span class="text-slate-300">•</span>
+              <span>NEWS2 Scoring</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-amber-600">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <span class="font-medium">Demo only:</span>
+              <span>InMemory event store (not durable), SQLite, shortened timers</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     """
   end
@@ -557,7 +614,7 @@ defmodule PatientMonitorWeb.DashboardLive do
       <span class={"w-2 h-2 rounded-full mt-1.5 #{action_color(@entry.action)}"} />
       <div class="flex-1">
         <span class="font-medium text-slate-700">{format_action(@entry.action)}</span>
-        <span :if={@entry.patient_id} class="text-slate-500"> -          {@entry.patient_id}</span>
+        <span :if={@entry.patient_id} class="text-slate-500"> -           {@entry.patient_id}</span>
         <span :if={@entry.actor && @entry.actor != "System"} class="text-slate-400">
           by {@entry.actor}
         </span>

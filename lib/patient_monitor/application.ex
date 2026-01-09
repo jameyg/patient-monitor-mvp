@@ -84,16 +84,19 @@ defmodule PatientMonitor.Application do
   end
 
   @doc """
-  Resets all demo data - clears database tables and re-seeds patients.
+  Resets all demo data - clears database tables, event store, and re-seeds patients.
   """
   def reset_demo do
     alias PatientMonitor.Repo
     alias PatientMonitor.Patients.{PatientProjection, VitalsReading}
     alias PatientMonitor.Escalations.{Escalation, EscalationStep}
     alias PatientMonitor.ActivityLog
+    import Ecto.Query
 
     # Cancel any running Oban jobs
-    Oban.cancel_all_jobs(Oban)
+    Oban.cancel_all_jobs(
+      from(j in Oban.Job, where: j.state in ["available", "scheduled", "executing"])
+    )
 
     # Clear all tables (order matters for foreign keys)
     Repo.delete_all(EscalationStep)
@@ -102,13 +105,84 @@ defmodule PatientMonitor.Application do
     Repo.delete_all(ActivityLog)
     Repo.delete_all(PatientProjection)
 
+    # Reset the Commanded InMemory event store (clears all aggregates/events)
+    # This also stops subscriptions, so we need to restart the handlers
+    Commanded.EventStore.Adapters.InMemory.reset!(PatientMonitor.Commanded.App)
+
+    # Stop all running aggregate processes (they still have old state in memory)
+    stop_all_aggregates()
+
+    # Restart the event handlers (they were stopped by reset!)
+    restart_event_handlers()
+
+    # Give handlers time to resubscribe before dispatching new events
+    Process.sleep(100)
+
     # Re-seed patients
     do_seed_patients()
+
+    # Wait for event handlers to process the seed events and update the database
+    wait_for_patients_seeded()
 
     # Broadcast to refresh UI
     Phoenix.PubSub.broadcast(PatientMonitor.PubSub, "patients", :demo_reset)
     Phoenix.PubSub.broadcast(PatientMonitor.PubSub, "escalations", :demo_reset)
 
     :ok
+  end
+
+  defp restart_event_handlers do
+    # The handler child IDs in the supervisor are tuples with module and options
+    handler_child_ids = [
+      {PatientMonitor.Commanded.Handlers.ProjectionHandler,
+       [
+         application: PatientMonitor.Commanded.App,
+         name: PatientMonitor.Commanded.Handlers.ProjectionHandler,
+         start_from: :origin
+       ]},
+      {PatientMonitor.Commanded.Handlers.EscalationHandler,
+       [
+         application: PatientMonitor.Commanded.App,
+         name: PatientMonitor.Commanded.Handlers.EscalationHandler,
+         start_from: :origin
+       ]}
+    ]
+
+    for child_id <- handler_child_ids do
+      # Terminate and restart each handler
+      Supervisor.terminate_child(PatientMonitor.Supervisor, child_id)
+      Supervisor.restart_child(PatientMonitor.Supervisor, child_id)
+    end
+
+    # Wait for handlers to resubscribe
+    Process.sleep(200)
+  end
+
+  defp wait_for_patients_seeded(attempts \\ 20) do
+    # Poll until we see 3 patients in the database (our seed count)
+    # or give up after max attempts
+    case PatientMonitor.Patients.list_patients() do
+      patients when length(patients) >= 3 ->
+        :ok
+
+      _ when attempts > 0 ->
+        Process.sleep(50)
+        wait_for_patients_seeded(attempts - 1)
+
+      _ ->
+        # Give up, proceed anyway
+        :ok
+    end
+  end
+
+  defp stop_all_aggregates do
+    # The aggregates supervisor is a DynamicSupervisor under the Commanded app
+    aggregates_supervisor =
+      Module.concat([PatientMonitor.Commanded.App, Commanded.Aggregates.Supervisor])
+
+    # Terminate all aggregate child processes
+    for {_, pid, _, _} <- DynamicSupervisor.which_children(aggregates_supervisor) do
+      DynamicSupervisor.terminate_child(aggregates_supervisor, pid)
+    end
   end
 end
