@@ -318,7 +318,7 @@ defmodule PatientMonitorWeb.DashboardLive do
       <div :if={@escalation.status == "active"} class="flex gap-2 items-center border-t border-slate-100 pt-4">
         <input
           type="text"
-          placeholder="Enter your name" class="placeholder:text-slate-400"
+          placeholder="Enter your name" class="text-slate-900 bg-white placeholder:text-slate-400"
           value={@user_name}
           phx-keyup="update_user_name"
           class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
